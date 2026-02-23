@@ -1,17 +1,15 @@
 import os
 import logging
 from playwright.sync_api import sync_playwright
-from dotenv import load_dotenv
-
-load_dotenv()
+from main import get_config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("TestLogin")
 
 def test_login():
-    url = os.getenv("LOGIN_URL")
-    username = os.getenv("LOGIN_USERNAME")
-    password = os.getenv("LOGIN_PASSWORD")
+    url = get_config("LOGIN_URL")
+    username = get_config("LOGIN_USERNAME")
+    password = get_config("LOGIN_PASSWORD")
 
     logger.info(f"Testing login for {url}")
     

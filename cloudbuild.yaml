@@ -18,7 +18,6 @@ steps:
       - '--region=${_LOCATION}'
       - '--platform=managed'
       - '--allow-unauthenticated'
-      - '--set-env-vars=GOOGLE_API_KEY=AIzaSyAuc_JbjzMqNNsFPbisVqseyVDcv2Oo74Y,LOGIN_URL=https://account.everyoneactive.com/login/,LOGIN_USERNAME=tomantony44@gmail.com,LOGIN_PASSWORD=3xtZ42PR426j2@4,DEFAULT_CENTER=Stevenage Arts & L C,DEFAULT_ACTIVITY_TYPE=Sports Hall,DEFAULT_ACTIVITY=Badminton (55 Min),TZ=UTC,PREF_SLOT=21:30'
       - '--memory=2Gi'
 
 substitutions:

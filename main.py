@@ -11,6 +11,9 @@ from playwright.sync_api import sync_playwright
 from apscheduler.schedulers.background import BackgroundScheduler
 import pytz
 
+from google.cloud import secretmanager
+import google.auth
+
 from flask import Flask, request, jsonify
 try:
     from dotenv import load_dotenv
@@ -29,13 +32,42 @@ logging.basicConfig(
 )
 logger = logging.getLogger("BookingAgent")
 
+_secrets_cache = {}
+_sm_client = None
+_gcp_project = None
+
+def get_config(key, default=None):
+    global _sm_client, _gcp_project
+    if key in _secrets_cache:
+        return _secrets_cache[key]
+    
+    try:
+        # Initialize client lazily
+        if not _sm_client:
+            _, _gcp_project = google.auth.default()
+            if _gcp_project:
+                _sm_client = secretmanager.SecretManagerServiceClient()
+                
+        if _sm_client and _gcp_project:
+            secret_name = f"projects/{_gcp_project}/secrets/stev_smash_{key}/versions/latest"
+            response = _sm_client.access_secret_version(request={"name": secret_name})
+            val = response.payload.data.decode("UTF-8")
+            _secrets_cache[key] = val
+            return val
+    except Exception as e:
+        logger.debug(f"Could not fetch {key} from Secret Manager: {e}")
+        
+    val = os.getenv(key, default)
+    _secrets_cache[key] = val
+    return val
+
 def login_to_website(page, url: str = None, username: str = None, password: str = None):
     """
     Automates logging into Everyone Active.
     """
-    url = url or os.getenv("LOGIN_URL")
-    username = username or os.getenv("LOGIN_USERNAME")
-    password = password or os.getenv("LOGIN_PASSWORD")
+    url = url or get_config("LOGIN_URL")
+    username = username or get_config("LOGIN_USERNAME")
+    password = password or get_config("LOGIN_PASSWORD")
 
     if not url:
         return False, "Error: No URL provided for login."
@@ -77,9 +109,9 @@ def book_activity_task(target_date: str = None):
     Automates the booking flow. If target_date is None, books for today.
     target_date should be in DD/MM/YYYY format (e.g. '23/02/2026').
     """
-    center = os.getenv("DEFAULT_CENTER", "Stevenage Arts & L C")
-    activity_type = os.getenv("DEFAULT_ACTIVITY_TYPE", "Sports Hall")
-    activity = os.getenv("DEFAULT_ACTIVITY", "Badminton (55 Min)")
+    center = get_config("DEFAULT_CENTER", "Stevenage Arts & L C")
+    activity_type = get_config("DEFAULT_ACTIVITY_TYPE", "Sports Hall")
+    activity = get_config("DEFAULT_ACTIVITY", "Badminton (55 Min)")
 
     logger.info(f"Starting Booking automation for {activity} at {center} on {target_date or 'today'}...")
     
@@ -261,6 +293,11 @@ def create_agent():
     try:
         logger.info("Initializing Agent...")
         
+        # Ensure GOOGLE_API_KEY is in os.environ since some google genai sdks expect it there
+        api_key = get_config("GOOGLE_API_KEY")
+        if api_key and "GOOGLE_API_KEY" not in os.environ:
+            os.environ["GOOGLE_API_KEY"] = api_key
+
         agent = LlmAgent(
             name="Booking_Agent",
             instruction=(
@@ -324,15 +361,17 @@ def run_agent(query):
         return f"An error occurred: {str(e)}"
 
 def scheduled_task():
-    """Daily task runs at midnight to catch newly opened slots (typically 8 days ahead)."""
+    """Daily task runs at midnight to catch newly opened slots (typically 7 days ahead)."""
     logger.info("Starting scheduled daily task at midnight...")
     
-    # Calculate target date: 8 days from now when new slots open
-    target_date_obj = datetime.now() + timedelta(days=8)
+    # Calculate target date: 7 days from now in UK time
+    uk_tz = pytz.timezone('Europe/London')
+    now_uk = datetime.now(uk_tz)
+    target_date_obj = now_uk + timedelta(days=7)
     target_date_str = target_date_obj.strftime("%d/%m/%Y")
     
-    activity = os.getenv("DEFAULT_ACTIVITY", "Badminton (55 Min)")
-    pref_slot = os.getenv("PREF_SLOT", "21:30")
+    activity = get_config("DEFAULT_ACTIVITY", "Badminton (55 Min)")
+    pref_slot = get_config("PREF_SLOT", "21:30")
     
     logger.info(f"Targeting booking for {target_date_str} at {pref_slot}...")
     
@@ -364,14 +403,19 @@ def trigger_scheduled_task():
     return jsonify({"status": "Scheduled task triggered"}), 200
 
 if __name__ == "__main__":
-    if not os.getenv("GOOGLE_API_KEY"):
-        logger.warning("GOOGLE_API_KEY environment variable not set.")
+    if not get_config("GOOGLE_API_KEY"):
+        logger.warning("GOOGLE_API_KEY environment variable/secret not set.")
 
-    timezone = os.getenv("TZ", "UTC")
-    scheduler = BackgroundScheduler(timezone=pytz.timezone(timezone))
+    timezone = get_config("TZ", "Europe/London")
+    try:
+        tz = pytz.timezone(timezone)
+    except Exception:
+        tz = pytz.timezone("Europe/London")
+        
+    scheduler = BackgroundScheduler(timezone=tz)
     scheduler.add_job(scheduled_task, 'cron', hour=0, minute=0)
     scheduler.start()
-    logger.info(f"Scheduler started. Task scheduled for 00:00 daily ({timezone}).")
+    logger.info(f"Scheduler started. Task scheduled for 00:00 daily (timezone: {tz}).")
 
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)

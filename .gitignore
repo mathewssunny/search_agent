@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.env
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+agent.log
+
+# IDEs
+.vscode/
+.idea/
+
+# Environment files
+.env
+
+# Playwright
+screenshots/
+*.png
+*.jpg
+*.jpeg
+
+# GCP keys (prevent service account keys from being checked in)
+*-key.json
+credentials.json
