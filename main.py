@@ -4,7 +4,6 @@ import sys
 import time
 from datetime import datetime, timedelta
 from google.adk.agents import LlmAgent
-from google.adk.tools import google_search
 from google.adk.runners import Runner, InMemorySessionService
 from google.genai import types
 from playwright.sync_api import sync_playwright
@@ -336,7 +335,7 @@ def create_agent():
                 "By default, you should look for Badminton at Stevenage Arts & LC under Sports Hall. "
                 "Report back the final status of the search or booking."
             ),
-            tools=[google_search, book_activity_task],
+            tools=[book_activity_task],
             model="gemini-2.0-flash"
         )
 
