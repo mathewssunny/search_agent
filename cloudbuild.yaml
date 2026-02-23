@@ -1,0 +1,31 @@
+steps:
+  # 1. Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE_NAME}', '.']
+
+  # 2. Push the Docker image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE_NAME}']
+
+  # 3. Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_IMAGE_NAME}'
+      - '--region=${_LOCATION}'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--set-env-vars=GOOGLE_API_KEY=AIzaSyAuc_JbjzMqNNsFPbisVqseyVDcv2Oo74Y,LOGIN_URL=https://account.everyoneactive.com/login/,LOGIN_USERNAME=tomantony44@gmail.com,LOGIN_PASSWORD=3xtZ42PR426j2@4,DEFAULT_CENTER=Stevenage Arts & L C,DEFAULT_ACTIVITY_TYPE=Sports Hall,DEFAULT_ACTIVITY=Badminton (55 Min),TZ=UTC,PREF_SLOT=21:30'
+      - '--memory=2Gi'
+
+substitutions:
+  _LOCATION: us-central1
+  _REPOSITORY: my-repo
+  _IMAGE_NAME: search-agent
+  _SERVICE_NAME: search-agent-service
+
+options:
+  logging: CLOUD_LOGGING_ONLY

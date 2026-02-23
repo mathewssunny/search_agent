@@ -1,0 +1,36 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: search-agent-service
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    spec:
+      containers:
+      - image: us-central1-docker.pkg.dev/coolpics-hosting/my-repo/search-agent
+        ports:
+        - containerPort: 8080
+        env:
+        - name: GOOGLE_API_KEY
+          value: "AIzaSyAuc_JbjzMqNNsFPbisVqseyVDcv2Oo74Y"
+        - name: LOGIN_URL
+          value: "https://account.everyoneactive.com/login/"
+        - name: LOGIN_USERNAME
+          value: "tomantony44@gmail.com"
+        - name: LOGIN_PASSWORD
+          value: "3xtZ42PR426j2@4"
+        - name: DEFAULT_CENTER
+          value: "Stevenage Arts & L C"
+        - name: DEFAULT_ACTIVITY_TYPE
+          value: "Sports Hall"
+        - name: DEFAULT_ACTIVITY
+          value: "Badminton (55 Min)"
+        - name: TZ
+          value: "UTC"
+        - name: PREF_SLOT
+          value: "21:30"
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 2Gi # Playwright/Chromium needs more memory
