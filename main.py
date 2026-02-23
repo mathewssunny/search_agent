@@ -337,7 +337,7 @@ def create_agent():
                 "Report back the final status of the search or booking."
             ),
             tools=[google_search, book_activity_task],
-            model="gemini-3-flash-preview"
+            model="gemini-2.0-flash"
         )
 
         logger.info("Agent initialization successful.")
