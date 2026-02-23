@@ -104,10 +104,11 @@ def login_to_website(page, url: str = None, username: str = None, password: str 
         logger.error(f"Login error: {e}")
         return False, str(e)
 
-def book_activity_task(target_date: str = None):
+def book_activity_task(target_date: str = None, target_time: str = None):
     """
     Automates the booking flow. If target_date is None, books for today.
     target_date should be in DD/MM/YYYY format (e.g. '23/02/2026').
+    target_time should be in HH:MM format (e.g. '21:30').
     """
     center = get_config("DEFAULT_CENTER", "Stevenage Arts & L C")
     activity_type = get_config("DEFAULT_ACTIVITY_TYPE", "Sports Hall")
@@ -250,6 +251,14 @@ def book_activity_task(target_date: str = None):
                     court = slot.get('court', '')
                     is_pref_hall = any(x in court for x in ["Main Hall", "Badminton"])
                     
+                    if target_time:
+                        if time_str == target_time:
+                            return 1 if is_pref_hall else 2
+                        elif abs(int(time_str.split(":")[0]) - int(target_time.split(":")[0])) <= 1:
+                            return 3 if is_pref_hall else 4
+                        else:
+                            return 999
+
                     # Tier 1: Top Preference (19:30 or 20:30)
                     if time_str in ["19:30", "20:30"]:
                         return 1 if is_pref_hall else 2
@@ -288,29 +297,49 @@ def book_activity_task(target_date: str = None):
         logger.error(f"Booking automation failed: {e}")
         return f"Error during booking: {e}"
 
+def _setup_vertex_ai():
+    """Configure environment for Vertex AI backend instead of Gemini API (AI Studio)."""
+    # Tell google-genai / ADK to use Vertex AI backend
+    os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "TRUE")
+
+    # Set project and location from Secret Manager / env, with sensible defaults
+    project = get_config("GOOGLE_CLOUD_PROJECT") or get_config("GCP_PROJECT")
+    if not project:
+        # Fallback: read from google.auth.default()
+        try:
+            _, project = google.auth.default()
+        except Exception:
+            pass
+    if project:
+        os.environ.setdefault("GOOGLE_CLOUD_PROJECT", project)
+        logger.info(f"Vertex AI project: {project}")
+
+    location = get_config("GOOGLE_CLOUD_LOCATION", "us-central1")
+    os.environ.setdefault("GOOGLE_CLOUD_LOCATION", location)
+    logger.info(f"Vertex AI location: {location}")
+
 def create_agent():
     """Initializes the Google ADK Booking Agent."""
     try:
         logger.info("Initializing Agent...")
-        
-        # Ensure GOOGLE_API_KEY is in os.environ since some google genai sdks expect it there
-        api_key = get_config("GOOGLE_API_KEY")
-        if api_key and "GOOGLE_API_KEY" not in os.environ:
-            os.environ["GOOGLE_API_KEY"] = api_key
+
+        # Configure Vertex AI backend (uses ADC for auth – no API key needed)
+        _setup_vertex_ai()
 
         agent = LlmAgent(
             name="Booking_Agent",
             instruction=(
                 "You are an automation assistant for Everyone Active bookings. "
                 "Use the book_activity_task tool to navigate the Everyone Active site and set up a booking. "
-                "The tool accepts a target_date argument in DD/MM/YYYY format if the user specifies a date. "
+                "The tool accepts a target_date argument in DD/MM/YYYY format if the user specifies a date, "
+                "and a target_time argument in HH:MM format if the user specifies a time. "
                 "By default, you should look for Badminton at Stevenage Arts & LC under Sports Hall. "
                 "Report back the final status of the search or booking."
             ),
             tools=[google_search, book_activity_task],
-            model="gemini-2.0-flash"
+            model="gemini-3-flash-preview"
         )
-        
+
         logger.info("Agent initialization successful.")
         return agent
     except Exception as e:
@@ -403,8 +432,8 @@ def trigger_scheduled_task():
     return jsonify({"status": "Scheduled task triggered"}), 200
 
 if __name__ == "__main__":
-    if not get_config("GOOGLE_API_KEY"):
-        logger.warning("GOOGLE_API_KEY environment variable/secret not set.")
+    # Vertex AI uses ADC – just verify project is discoverable
+    _setup_vertex_ai()
 
     timezone = get_config("TZ", "Europe/London")
     try:

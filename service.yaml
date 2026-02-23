@@ -11,7 +11,13 @@ spec:
       - image: us-central1-docker.pkg.dev/coolpics-hosting/my-repo/search-agent
         ports:
         - containerPort: 8080
-
+        env:
+        - name: GOOGLE_GENAI_USE_VERTEXAI
+          value: "TRUE"
+        - name: GOOGLE_CLOUD_PROJECT
+          value: "coolpics-hosting"
+        - name: GOOGLE_CLOUD_LOCATION
+          value: "us-central1"
         resources:
           limits:
             cpu: 1000m
