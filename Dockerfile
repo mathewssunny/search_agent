@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN playwright install --with-deps chromium
 
 # Copy project files
-COPY main.py .
+COPY . .
 
 # Create a log file and set permissions
 RUN touch agent.log && chmod 666 agent.log
