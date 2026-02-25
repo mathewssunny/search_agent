@@ -8,3 +8,4 @@ flask
 gunicorn
 google-cloud-secret-manager
 google-auth
+nest-asyncio
