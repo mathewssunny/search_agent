@@ -14,9 +14,9 @@ spec:
         env:
         - name: GOOGLE_GENAI_USE_VERTEXAI
           value: "TRUE"
-        - name: GOOGLE_CLOUD_PROJECT
+        - name: stev_smash_GOOGLE_CLOUD_PROJECT
           value: "coolpics-hosting"
-        - name: GOOGLE_CLOUD_LOCATION
+        - name: stev_smash_GOOGLE_CLOUD_LOCATION
           value: "us-central1"
         resources:
           limits:

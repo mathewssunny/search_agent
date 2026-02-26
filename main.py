@@ -23,7 +23,7 @@ except ImportError:
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
@@ -37,26 +37,51 @@ _sm_client = None
 _gcp_project = None
 
 def get_config(key, default=None):
+    """
+    Retrieves configuration from (in order of priority):
+    1. Environment variables with 'stev_smash_' prefix
+    2. Google Cloud Secret Manager with 'stev_smash_' prefix
+    3. Environment variables without prefix (legacy/system)
+    4. Default value
+    """
     global _sm_client, _gcp_project
     if key in _secrets_cache:
         return _secrets_cache[key]
     
+    prefixed_key = f"stev_smash_{key}"
+    
+    # 1. Check prefixed environment variable
+    val = os.getenv(prefixed_key)
+    if val is not None:
+        _secrets_cache[key] = val
+        return val
+
+    # 2. Try Secret Manager with prefix
     try:
         # Initialize client lazily
         if not _sm_client:
-            _, _gcp_project = google.auth.default()
+            # Try to get project from env first (set in cloudrun env or by _setup_vertex_ai)
+            _gcp_project = os.getenv("stev_smash_GOOGLE_CLOUD_PROJECT") or os.getenv("GOOGLE_CLOUD_PROJECT")
+            if not _gcp_project:
+                try:
+                    _, _gcp_project = google.auth.default()
+                except Exception:
+                    pass
+            
             if _gcp_project:
                 _sm_client = secretmanager.SecretManagerServiceClient()
+                logger.debug(f"Secret Manager client initialized for project: {_gcp_project}")
                 
         if _sm_client and _gcp_project:
-            secret_name = f"projects/{_gcp_project}/secrets/stev_smash_{key}/versions/latest"
+            secret_name = f"projects/{_gcp_project}/secrets/{prefixed_key}/versions/latest"
             response = _sm_client.access_secret_version(request={"name": secret_name})
             val = response.payload.data.decode("UTF-8")
             _secrets_cache[key] = val
             return val
     except Exception as e:
-        logger.debug(f"Could not fetch {key} from Secret Manager: {e}")
+        logger.warning(f"Could not fetch {prefixed_key} from Secret Manager (check permissions): {e}")
         
+    # 3. Fallback to bare environment variable or default
     val = os.getenv(key, default)
     _secrets_cache[key] = val
     return val
@@ -99,11 +124,18 @@ async def login_to_website(page, url: str = None, username: str = None, password
             await login_btn.click()
             
             logger.info("Login form submitted. Waiting for navigation...")
-            await page.wait_for_load_state("networkidle", timeout=60000)
+            try:
+                # Wait for any navigation or network activity to finish
+                await page.wait_for_load_state("networkidle", timeout=30000)
+                await asyncio.sleep(5) # Give it time to redirect
+            except:
+                pass
             
             # Verify login success
             current_url = page.url.lower()
-            if "login" not in current_url or await page.locator("a:has-text('Log out')").is_visible(timeout=5000):
+            logout_visible = await page.locator("a:has-text('Log out'), a:has-text('Logout')").is_visible(timeout=5000)
+            
+            if logout_visible or "login" not in current_url:
                 logger.info(f"Login successful. Current URL: {page.url}")
                 return True, "Login successful."
             else:
@@ -165,8 +197,21 @@ async def _do_book_activity(target_date: str = None, target_time: str = None):
     try:
         async with async_playwright() as p:
             logger.info("Launching browser...")
+            # Set a realistic User-Agent and extra headers to help bypass Cloudflare
+            user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
             browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(viewport={'width': 1280, 'height': 800})
+            context = await browser.new_context(
+                viewport={'width': 1280, 'height': 800},
+                user_agent=user_agent,
+                extra_http_headers={
+                    "Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+                    "Sec-Fetch-Site": "same-origin",
+                    "Sec-Fetch-Mode": "navigate",
+                    "Sec-Fetch-User": "?1",
+                    "Sec-Fetch-Dest": "document",
+                }
+            )
             page = await context.new_page()
             
             # 1. Login

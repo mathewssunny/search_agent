@@ -45,3 +45,10 @@ screenshots/
 # GCP keys (prevent service account keys from being checked in)
 *-key.json
 credentials.json
+
+# Node.js
+node_modules/
+package-lock.json
+
+# Puppeteer traces
+puppeteer_trace.json

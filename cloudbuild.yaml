@@ -19,7 +19,7 @@ steps:
       - '--platform=managed'
       - '--allow-unauthenticated'
       - '--memory=2Gi'
-      - '--set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${_LOCATION}'
+      - '--set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=TRUE,stev_smash_GOOGLE_CLOUD_PROJECT=${PROJECT_ID},stev_smash_GOOGLE_CLOUD_LOCATION=${_LOCATION}'
 
 substitutions:
   _LOCATION: us-central1
